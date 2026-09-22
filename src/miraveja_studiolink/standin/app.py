@@ -32,7 +32,12 @@ from miraveja_studiolink.messages.exhibition import ExhibitionView
 from miraveja_studiolink.messages.experiences import ExperienceBatch
 from miraveja_studiolink.messages.presence import PresenceAnnouncement
 from miraveja_studiolink.messages.refusal import RefusalReason
-from miraveja_studiolink.standin.state import CommentRecord, PieceRecord, StandInState
+from miraveja_studiolink.standin.state import (
+    CommentRecord,
+    PieceRecord,
+    StandInState,
+    public_payload,
+)
 
 SUPPORTED_CONTRACT_VERSIONS = ["1.0.0"]
 MAX_IMAGE_BYTES = 20 * 1024 * 1024
@@ -104,7 +109,7 @@ def _uuid_or_refuse(raw: str, reason: RefusalReason = "malformed") -> uuid.UUID:
 
 
 def _with_sequence(payload: dict, sequence: int) -> dict:
-    return {**payload, "sequence": sequence}
+    return {**public_payload(payload), "sequence": sequence}
 
 
 # -- handlers -----------------------------------------------------------------------
@@ -260,7 +265,12 @@ async def collect_experiences_handler(request: Request) -> JSONResponse:
     )
     batch = ExperienceBatch.model_validate(
         {
-            "items": [_with_sequence(item.payload, item.sequence) for item in items],
+            "items": [
+                _with_sequence(
+                    state.resolve_experience_payload(persona_id, item.payload), item.sequence
+                )
+                for item in items
+            ],
             "nextSequence": next_sequence,
         }
     )

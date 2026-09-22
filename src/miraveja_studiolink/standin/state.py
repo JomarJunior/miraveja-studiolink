@@ -26,6 +26,15 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def public_payload(payload: dict) -> dict:
+    """`payload` with internal-only (`__`-prefixed) bookkeeping keys stripped.
+
+    Nothing internal to the stand-in's own bookkeeping (like a reaction's withdrawal
+    handle) may ever reach the wire (FR-023).
+    """
+    return {key: value for key, value in payload.items() if not key.startswith("__")}
+
+
 @dataclass
 class QueueItem[ItemT]:
     sequence: int
@@ -213,13 +222,22 @@ class StandInState:
 
     # -- pseudonyms (R-6, FR-017, FR-017a) -----------------------------------------
 
+    def note_interaction(self, persona_id: uuid.UUID, visitor_id: str) -> None:
+        """Record that `persona_id` now holds a pseudonym for `visitor_id` (FR-044).
+
+        Called the moment the interaction happens, not when the Studio happens to
+        collect it, so an erasure notice can reach every persona that holds a
+        pseudonym even if the Studio has not connected yet.
+        """
+        self._visitor_personas.setdefault(visitor_id, set()).add(persona_id)
+
     def pseudonym_for(self, persona_id: uuid.UUID, visitor_id: str) -> str:
         digest = hmac.new(
             self._pseudonym_secret,
             f"{persona_id}:{visitor_id}".encode(),
             hashlib.sha256,
         ).hexdigest()
-        self._visitor_personas.setdefault(visitor_id, set()).add(persona_id)
+        self.note_interaction(persona_id, visitor_id)
         return f"v-{digest[:20]}"
 
     def visitor_ref(self, persona_id: uuid.UUID, visitor_id: str) -> dict:
@@ -246,7 +264,9 @@ class StandInState:
         visitor.erased = True
         for persona_id in self._visitor_personas.get(visitor_id, set()):
             pseudonym = self.pseudonym_for(persona_id, visitor_id)
-            await self.erasure_queues[persona_id].append({"pseudonym": pseudonym})
+            await self.erasure_queues[persona_id].append(
+                {"pseudonym": pseudonym, "issuedAt": utcnow()}
+            )
 
     async def seed_exhibited_piece(
         self,
@@ -298,13 +318,15 @@ class StandInState:
         )
         self.comments[comment_id] = record
         piece.comment_ids.append(comment_id)
-        author = self.visitor_ref(piece.owner_persona_id, visitor_id)
+        self.note_interaction(piece.owner_persona_id, visitor_id)
         payload = {
             "kind": "comment",
             "occurredAt": record.written_at,
             "commentId": comment_id,
-            "author": author,
             "text": text,
+            # Resolved lazily at collection time (not here), so an erasure that happens
+            # after this is queued still anonymizes it before it is ever delivered.
+            "__authorVisitorId": visitor_id,
         }
         # Exactly one of these, per data-model.md; the other is omitted, not null,
         # since neither is required by the hub schema (FR-016).
@@ -315,16 +337,56 @@ class StandInState:
         await self.experience_queues[piece.owner_persona_id].append(payload)
         return comment_id
 
-    async def script_reaction(self, *, piece_id: uuid.UUID, visitor_id: str, reaction: str) -> None:
+    async def script_reaction(
+        self, *, piece_id: uuid.UUID, visitor_id: str, reaction: str
+    ) -> uuid.UUID:
         piece = self.pieces[piece_id]
+        reaction_id = uuid.uuid4()
+        self.note_interaction(piece.owner_persona_id, visitor_id)
         payload = {
             "kind": "reaction",
             "occurredAt": utcnow(),
-            "visitor": self.visitor_ref(piece.owner_persona_id, visitor_id),
             "reaction": reaction,
             "onPieceId": piece_id,
+            # Both resolved lazily, only at collection time: the visitor reference so an
+            # erasure after queuing still anonymizes it (FR-044), and the reaction id
+            # only for withdrawal — the contract has no reaction identifier of its own,
+            # so it is stripped before the wire response either way (public_payload).
+            "__visitorId": visitor_id,
+            "__reactionId": reaction_id,
         }
         await self.experience_queues[piece.owner_persona_id].append(payload)
+        return reaction_id
+
+    def resolve_experience_payload(self, persona_id: uuid.UUID, payload: dict) -> dict:
+        """Resolve a queued payload's visitor references against *current* state.
+
+        Erasure must anonymize a visitor's already-queued, not-yet-delivered
+        experiences too (Edge Cases: "the experience is still delivered, but the
+        visitor appears only as 'a former visitor'"), so `author`/`visitor` are never
+        baked in at queue time — only resolved here, right before delivery.
+        """
+        resolved = dict(payload)
+        if "__authorVisitorId" in resolved:
+            resolved["author"] = self.visitor_ref(persona_id, resolved.pop("__authorVisitorId"))
+        if "__visitorId" in resolved:
+            resolved["visitor"] = self.visitor_ref(persona_id, resolved.pop("__visitorId"))
+        return resolved
+
+    def withdraw_comment(self, comment_id: uuid.UUID) -> None:
+        """The comment's experience is withdrawn and never delivered (FR-020)."""
+        record = self.comments[comment_id]
+        owner = self.pieces[record.piece_id].owner_persona_id
+        self.experience_queues[owner].withdraw(
+            lambda payload: payload.get("commentId") == comment_id
+        )
+
+    def withdraw_reaction(self, piece_id: uuid.UUID, reaction_id: uuid.UUID) -> None:
+        """The reaction's experience is withdrawn and never delivered (FR-020)."""
+        owner = self.pieces[piece_id].owner_persona_id
+        self.experience_queues[owner].withdraw(
+            lambda payload: payload.get("__reactionId") == reaction_id
+        )
 
     async def simulate_gate_outcome(
         self,
