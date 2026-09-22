@@ -7,10 +7,10 @@ schema, or the reverse, and one of these assertions breaks.
 from __future__ import annotations
 
 import pytest
-from schema_compare import diff
 
 from miraveja_studiolink.contract import load_contract
 from miraveja_studiolink.messages import SCHEMA_MODELS
+from tests.schemas.schema_compare import diff
 
 HUB_DOCUMENT = load_contract()
 

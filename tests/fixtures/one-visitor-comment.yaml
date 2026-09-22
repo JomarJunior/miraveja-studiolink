@@ -1,0 +1,23 @@
+# Scripting fixture for quickstart Scenario 2 (SC-001): a synthetic persona has one
+# exhibited piece, and a synthetic visitor has already left a comment on it before the
+# Studio ever connects. Every name here is synthetic (Principle VIII, SC-008).
+
+visitors:
+  - id: quiet-tide
+    displayName: quiet_tide
+
+pieces:
+  - id: 33333333-3333-4333-8333-333333333333
+    personaId: 11111111-1111-4111-8111-111111111111
+    publicName: Synthetic Persona One
+    title: Low Tide, Remembered
+    statement: I kept the horizon out of it. The water is the only witness I trust.
+    neutralDescription: >-
+      A wide seascape at dusk. Wet sand in the foreground reflects a violet sky.
+      No figures.
+    labels: []
+
+comments:
+  - pieceId: 33333333-3333-4333-8333-333333333333
+    visitorId: quiet-tide
+    text: This one is colder than your last. I mean that kindly.

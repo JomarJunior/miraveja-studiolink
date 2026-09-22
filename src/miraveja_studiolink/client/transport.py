@@ -4,11 +4,12 @@ Every exchange is an HTTPS request started by the Studio, carrying one bearer cr
 that identifies the Studio, never a persona (R-9). `StudioLinkTransport` is the single
 chokepoint: it attaches the credential, and turns any non-2xx response into a
 `RefusalReceived` the caller can act on (R-10), so no client submodule reimplements
-error handling.
+error handling. Async, so a 30-second long poll (FR-016) never blocks a whole process.
 """
 
 from __future__ import annotations
 
+from types import TracebackType
 from typing import Any
 
 import httpx
@@ -25,28 +26,33 @@ class StudioLinkTransport:
         base_url: str,
         credential: str,
         *,
-        transport: httpx.BaseTransport | None = None,
+        transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = 35.0,
     ) -> None:
-        self._client = httpx.Client(
+        self._client = httpx.AsyncClient(
             base_url=base_url,
             headers={"Authorization": f"Bearer {credential}"},
             transport=transport,
             timeout=timeout,
         )
 
-    def close(self) -> None:
-        self._client.close()
+    async def aclose(self) -> None:
+        await self._client.aclose()
 
-    def __enter__(self) -> StudioLinkTransport:
+    async def __aenter__(self) -> StudioLinkTransport:
         return self
 
-    def __exit__(self, *exc_info: object) -> None:
-        self.close()
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> None:
+        await self.aclose()
 
-    def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+    async def request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """Make one request. Raises `RefusalReceived` for any non-2xx response."""
-        response = self._client.request(method, path, **kwargs)
+        response = await self._client.request(method, path, **kwargs)
         if response.status_code >= 400:
             raise self._refusal_for(response)
         return response
