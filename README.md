@@ -44,7 +44,10 @@ uv run miraveja-studiolink standin --port 8080 --script tests/fixtures/one-visit
 uv run miraveja-studiolink conformance --target http://localhost:8080 --credential $STUDIOLINK_TOKEN
 ```
 
-See [`specs/001-studiolink-contract/quickstart.md`](https://github.com/JomarJunior/miraveja-ecosystem/blob/main/specs/001-studiolink-contract/quickstart.md)
+See [`docs/usage.md`](./docs/usage.md) for how a Studio component talks to the Museum
+side with `StudioLinkClient`, how refusals work, and how to check a Museum end you're
+building against the conformance suite. See
+[`specs/001-studiolink-contract/quickstart.md`](https://github.com/JomarJunior/miraveja-ecosystem/blob/main/specs/001-studiolink-contract/quickstart.md)
 in the hub for the full walkthrough.
 
 ## License
