@@ -57,7 +57,8 @@ jobs:
       - name: Run the conformance suite against the stand-in (SC-002)
         working-directory: miraveja-ecosystem/components/miraveja-studiolink
         run: |
-          uv run miraveja-studiolink standin --port 8080 --credential ci-token &
+          uv run miraveja-studiolink standin --port 8080 --credential ci-token \
+            --script tests/fixtures/one-visitor-comment.yaml &
           STANDIN_PID=$!
           sleep 1
           uv run miraveja-studiolink conformance --target http://127.0.0.1:8080 --credential ci-token

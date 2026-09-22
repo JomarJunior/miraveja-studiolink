@@ -43,6 +43,11 @@ class StudioLinkClient:
             base_url, credential, transport=transport, timeout=timeout
         )
 
+    @property
+    def transport(self) -> StudioLinkTransport:
+        """The one chokepoint every request goes through — for callers needing raw access."""
+        return self._transport
+
     async def aclose(self) -> None:
         await self._transport.aclose()
 
