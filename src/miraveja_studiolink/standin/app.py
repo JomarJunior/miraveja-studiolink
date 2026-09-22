@@ -246,6 +246,10 @@ async def collect_experiences_handler(request: Request) -> JSONResponse:
     persona_id = _uuid_or_refuse(request.path_params["personaId"], "persona_not_recognized")
     _require_known_persona(state, persona_id)
 
+    forced = state.take_forced_response("collectExperiences")
+    if forced is not None:
+        return JSONResponse(forced)
+
     from_sequence_raw = request.query_params.get("fromSequence")
     from_sequence = int(from_sequence_raw) if from_sequence_raw is not None else None
     limit = int(request.query_params.get("limit", 50))

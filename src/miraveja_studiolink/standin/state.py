@@ -163,6 +163,22 @@ class StandInState:
         self._visitor_personas: dict[str, set[uuid.UUID]] = {}
         self._pseudonym_secret = secrets.token_bytes(32)
 
+        self._forced_responses: dict[str, object] = {}
+
+    # -- test-only response forcing (T023, User Story 2) ---------------------------
+
+    def force_response(self, operation: str, body: object) -> None:
+        """Make the next call to `operation` answer with `body` verbatim.
+
+        Exists so contract tests can hand the Studio end a deliberately contaminated
+        message (FR-021 to FR-023) without the stand-in's own logic ever being able to
+        construct one. Not part of the contract; a testing-only escape hatch.
+        """
+        self._forced_responses[operation] = body
+
+    def take_forced_response(self, operation: str) -> object | None:
+        return self._forced_responses.pop(operation, None)
+
     # -- personas -----------------------------------------------------------------
 
     def register_persona(self, persona_id: uuid.UUID, public_name: str) -> PersonaRecord:
