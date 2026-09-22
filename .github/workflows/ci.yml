@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  guard:
+    name: Public repository guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/guard_public_repo.py
+
+  lint:
+    name: Lint, format and type check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.12"
+      - run: uv sync --all-groups
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+
+  test:
+    name: Tests and conformance
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the library
+        uses: actions/checkout@v4
+        with:
+          path: miraveja-studiolink
+      - name: Check out the hub (pinned contract source of truth)
+        uses: actions/checkout@v4
+        with:
+          repository: JomarJunior/miraveja-ecosystem
+          ref: main
+          path: miraveja-ecosystem
+      - name: Lay out components/ as it is on a real machine
+        run: |
+          mkdir -p miraveja-ecosystem/components
+          rm -rf miraveja-ecosystem/components/miraveja-studiolink
+          mv miraveja-studiolink miraveja-ecosystem/components/miraveja-studiolink
+      - uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.12"
+      - name: Install
+        working-directory: miraveja-ecosystem/components/miraveja-studiolink
+        run: uv sync --all-groups
+      - name: Run the test suite
+        working-directory: miraveja-ecosystem/components/miraveja-studiolink
+        run: uv run pytest -v
+      - name: Run the conformance suite against the stand-in (SC-002)
+        working-directory: miraveja-ecosystem/components/miraveja-studiolink
+        run: |
+          uv run miraveja-studiolink standin --port 8080 --credential ci-token &
+          STANDIN_PID=$!
+          sleep 1
+          uv run miraveja-studiolink conformance --target http://127.0.0.1:8080 --credential ci-token
+          kill $STANDIN_PID
