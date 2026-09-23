@@ -19,7 +19,9 @@ from miraveja_studiolink.standin.state import StandInState
 
 def _swap(state: StandInState, path: str, endpoint) -> Starlette:
     routes = [
-        Route(route.path, endpoint, methods=list(route.methods)) if route.path == path else route
+        Route(route.path, endpoint, methods=list(route.methods or []))
+        if route.path == path
+        else route
         for route in standin_app.routes
     ]
     app = Starlette(

@@ -442,3 +442,6 @@ class StandInState:
         self.erasure_queues.clear()
         self._closed_conversations.clear()
         self._visitor_personas.clear()
+        # Without this, a contaminated response forced by one test would still be armed
+        # for the next one.
+        self._forced_responses.clear()

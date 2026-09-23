@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import secrets
 import sys
+import uuid
 from pathlib import Path
 
 import uvicorn
@@ -37,6 +38,32 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     conformance.add_argument("--target", required=True, help="Base URL of the Museum end.")
     conformance.add_argument("--credential", required=True)
+    conformance.add_argument(
+        "--as-persona",
+        metavar="UUID",
+        help=(
+            "A persona on the target that already has experiences waiting, so the "
+            "redelivery check runs for real instead of skipping."
+        ),
+    )
+    conformance.add_argument(
+        "--persona-name",
+        default="Synthetic Conformance Persona",
+        help="Public name to announce for --as-persona.",
+    )
+    conformance.add_argument(
+        "--strict",
+        action="store_true",
+        help="Treat a skipped check as a failure: a skip is not a pass (SC-002).",
+    )
+    conformance.add_argument(
+        "--allow-insecure",
+        action="store_true",
+        help=(
+            "Send the credential over plain http to a non-loopback host. "
+            "Use only on a link you trust."
+        ),
+    )
 
     return parser
 
@@ -58,9 +85,24 @@ def _run_standin(args: argparse.Namespace) -> int:
 
 def _run_conformance(args: argparse.Namespace) -> int:
     from miraveja_studiolink.conformance.suite import run_suite
+    from miraveja_studiolink.messages.common import PersonaRef
 
-    report = run_suite(args.target, args.credential)
+    known_persona = None
+    if args.as_persona is not None:
+        known_persona = PersonaRef(
+            personaId=uuid.UUID(args.as_persona), publicName=args.persona_name
+        )
+
+    report = run_suite(
+        args.target,
+        args.credential,
+        known_persona=known_persona,
+        allow_insecure=args.allow_insecure,
+    )
     report.print_summary()
+    if args.strict and not report.complete:
+        print("\nStrict mode: a skipped check is not a pass.")
+        return 1
     return 0 if report.all_passed else 1
 
 

@@ -13,6 +13,8 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from pydantic import BaseModel
+
 Resolver = Callable[[str], dict[str, Any]]
 
 _CONSTRAINT_KEYS = (
@@ -24,6 +26,7 @@ _CONSTRAINT_KEYS = (
     "maxItems",
     "uniqueItems",
     "format",
+    "pattern",
 )
 
 
@@ -56,11 +59,11 @@ def normalize(node: dict[str, Any], resolver: Resolver) -> Any:
         has_null = any(v.get("type") == "null" for v in variants)
         if has_null and len(non_null) == 1:
             merged = dict(non_null[0])
-            result = normalize(merged, resolver)
-            if isinstance(result, dict):
-                result = dict(result)
-                result["nullable"] = True
-            return result
+            normalized = normalize(merged, resolver)
+            if isinstance(normalized, dict):
+                normalized = dict(normalized)
+                normalized["nullable"] = True
+            return normalized
         return {"oneOf": sorted((normalize(v, resolver) for v in variants), key=repr)}
 
     type_ = node.get("type")
@@ -134,7 +137,9 @@ def pydantic_resolver(schema: dict[str, Any]) -> Resolver:
     return resolve
 
 
-def diff(hub_schema: dict[str, Any], hub_doc: dict[str, Any], model: type) -> tuple[Any, Any]:
+def diff(
+    hub_schema: dict[str, Any], hub_doc: dict[str, Any], model: type[BaseModel]
+) -> tuple[Any, Any]:
     """Normalized (hub, model) schema pair for one message, ready to assert equal."""
     pydantic_schema = model.model_json_schema()
     hub_side = normalize(hub_schema, hub_resolver(hub_doc))

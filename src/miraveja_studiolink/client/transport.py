@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from types import TracebackType
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -18,6 +19,27 @@ from miraveja_studiolink.client.strict import parse_strict
 from miraveja_studiolink.messages.refusal import Refusal, RefusalReceived
 
 V1 = "/studiolink/v1"
+
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1", "[::1]"}
+
+
+def _require_protected_credential(base_url: str, *, allow_insecure: bool) -> None:
+    """Refuse to send the Studio credential in clear (R-9).
+
+    The credential identifies the whole Studio, so a mistyped base_url must fail loudly
+    rather than leak it. Loopback is allowed because a local stand-in has no network hop,
+    and `allow_insecure` exists for a trusted private link the operator has chosen.
+    """
+    if allow_insecure:
+        return
+    parts = urlsplit(base_url)
+    if parts.scheme == "https" or parts.hostname in _LOOPBACK_HOSTS:
+        return
+    raise ValueError(
+        f"refusing to send the Studio credential over {parts.scheme or 'an unknown scheme'} "
+        f"to {parts.hostname or base_url!r}: use https, or pass allow_insecure=True for a "
+        f"link you trust"
+    )
 
 
 class StudioLinkTransport:
@@ -28,7 +50,10 @@ class StudioLinkTransport:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = 35.0,
+        allow_insecure: bool = False,
     ) -> None:
+        if transport is None:
+            _require_protected_credential(base_url, allow_insecure=allow_insecure)
         self._client = httpx.AsyncClient(
             base_url=base_url,
             headers={"Authorization": f"Bearer {credential}"},

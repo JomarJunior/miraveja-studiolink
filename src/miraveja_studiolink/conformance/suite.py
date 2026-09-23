@@ -6,6 +6,10 @@ stand-in and against a real MuseuMusa. A handful of checks are opportunistic (th
 an exhibited piece to work with, which this suite cannot force a real Museum end to
 create): those are reported as skipped, not failed, when the museum has nothing
 exhibited yet.
+
+A skip is not a pass. Name a persona that already has experiences with `--as-persona` to
+turn the redelivery skip into a real check, and run with `--strict` to fail on any skip
+that remains — which is what SC-002's "passes 100%" actually requires.
 """
 
 from __future__ import annotations
@@ -257,6 +261,11 @@ class ConformanceReport:
     def all_passed(self) -> bool:
         return all(result.status != "fail" for result in self.results)
 
+    @property
+    def complete(self) -> bool:
+        """Every check reached a verdict. A skip is not a pass (SC-002)."""
+        return all(result.status == "pass" for result in self.results)
+
     def print_summary(self) -> None:
         symbols = {"pass": "PASS", "fail": "FAIL", "skip": "SKIP"}
         for result in self.results:
@@ -280,15 +289,59 @@ async def _run_one(name: str, check: CheckFn, client: StudioLinkClient) -> Check
     return CheckResult(name, "pass")
 
 
+def _checks_for(known_persona: PersonaRef | None) -> list[tuple[str, CheckFn]]:
+    """The checks to run, bound to a known persona where one is given.
+
+    A brand-new persona has nothing waiting for it, so the redelivery check can only skip
+    against a target this suite cannot seed. Naming a persona that already has experiences
+    (the operator knows which; on the stand-in the scripting fixture makes one) turns that
+    skip into a real check, which is what SC-002 asks for.
+    """
+    if known_persona is None:
+        return list(CHECKS)
+
+    async def redelivery_with_known_persona(client: StudioLinkClient) -> None:
+        await check_experiences_never_redeliver_after_acknowledgement(client, known_persona)
+
+    return [
+        (name, redelivery_with_known_persona)
+        if check is check_experiences_never_redeliver_after_acknowledgement
+        else (name, check)
+        for name, check in CHECKS
+    ]
+
+
 async def run_suite_async(
-    base_url: str, credential: str, *, transport: httpx.AsyncBaseTransport | None = None
+    base_url: str,
+    credential: str,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+    known_persona: PersonaRef | None = None,
+    allow_insecure: bool = False,
 ) -> ConformanceReport:
-    async with StudioLinkClient(base_url, credential, transport=transport) as client:
-        results = [await _run_one(name, check, client) for name, check in CHECKS]
+    async with StudioLinkClient(
+        base_url, credential, transport=transport, allow_insecure=allow_insecure
+    ) as client:
+        results = [
+            await _run_one(name, check, client) for name, check in _checks_for(known_persona)
+        ]
     return ConformanceReport(results)
 
 
 def run_suite(
-    base_url: str, credential: str, *, transport: httpx.AsyncBaseTransport | None = None
+    base_url: str,
+    credential: str,
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+    known_persona: PersonaRef | None = None,
+    allow_insecure: bool = False,
 ) -> ConformanceReport:
-    return asyncio.run(run_suite_async(base_url, credential, transport=transport))
+    return asyncio.run(
+        run_suite_async(
+            base_url,
+            credential,
+            transport=transport,
+            known_persona=known_persona,
+            allow_insecure=allow_insecure,
+        )
+    )

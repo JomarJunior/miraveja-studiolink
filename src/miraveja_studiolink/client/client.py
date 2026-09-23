@@ -38,9 +38,14 @@ class StudioLinkClient:
         *,
         transport: httpx.AsyncBaseTransport | None = None,
         timeout: float = 35.0,
+        allow_insecure: bool = False,
     ) -> None:
         self._transport = StudioLinkTransport(
-            base_url, credential, transport=transport, timeout=timeout
+            base_url,
+            credential,
+            transport=transport,
+            timeout=timeout,
+            allow_insecure=allow_insecure,
         )
 
     @property

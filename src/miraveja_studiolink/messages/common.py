@@ -21,7 +21,9 @@ class PersonaRef(ClosedModel):
 class VisitorRef(ClosedModel):
     """How a visitor appears to one persona: a per-persona pseudonym plus display name (FR-017)."""
 
-    pseudonym: str = Field(min_length=16, max_length=128)
+    # Opaque by construction: the pattern stops a pseudonym carrying prose, and so stops
+    # it becoming somewhere a metric could hide (FR-021).
+    pseudonym: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
     displayName: str | None = Field(min_length=1, max_length=80)
 
 

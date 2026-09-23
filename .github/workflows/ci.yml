@@ -34,11 +34,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: miraveja-studiolink
+      # Pinned, not `main`: the hub is the contract's source of truth (FR-008, R-13), so a
+      # hub commit must never turn this repository's CI red on its own. Bump this SHA
+      # deliberately, in the same change that adopts a new contract version.
       - name: Check out the hub (pinned contract source of truth)
         uses: actions/checkout@v4
         with:
           repository: JomarJunior/miraveja-ecosystem
-          ref: main
+          ref: da1c39af1a3e5f8c07f708b96e64d76286d69b24
           path: miraveja-ecosystem
       - name: Lay out components/ as it is on a real machine
         run: |
@@ -61,5 +64,10 @@ jobs:
             --script tests/fixtures/one-visitor-comment.yaml &
           STANDIN_PID=$!
           sleep 1
-          uv run miraveja-studiolink conformance --target http://127.0.0.1:8080 --credential ci-token
+          uv run miraveja-studiolink conformance \
+            --target http://127.0.0.1:8080 \
+            --credential ci-token \
+            --as-persona 11111111-1111-4111-8111-111111111111 \
+            --persona-name "Synthetic Persona One" \
+            --strict
           kill $STANDIN_PID

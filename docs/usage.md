@@ -126,3 +126,24 @@ suite is still useful as a specification of exactly what a Studio-side client ex
 every check names the functional requirement (FR-xxx) it is verifying, traceable back to
 [`specs/001-studiolink-contract/spec.md`](https://github.com/JomarJunior/miraveja-ecosystem/blob/main/specs/001-studiolink-contract/spec.md)
 in the hub.
+
+## Free text is the one surface schemas cannot police
+
+FR-021 forbids a metric reaching a persona "as its own field, embedded in another field, or
+as a derived summary". Closed schemas handle the first and third: an unknown `reactionCount`
+is refused outright, and no response carries a total. The second cannot be fully enforced —
+a Museum end could write "412 people liked this" inside a gate-outcome reason, and no
+validator can tell that from a sentence a human meant.
+
+What this library does instead:
+
+- Every free-form string a persona can read is authored by a human or a persona — a comment's
+  text, a persona's statement, the human gate's reason — never composed by the Museum side.
+- Machine-made strings are pattern-constrained. A pseudonym matches `^[A-Za-z0-9_-]+$`, so it
+  cannot carry prose.
+- `tests/schemas/test_free_text_surface.py` pins the exact set of free-text fields, so adding
+  another one is a deliberate act with this rule in front of you.
+
+If you are building a Museum end: composing a sentence about counts and putting it in a reason
+breaks Principle II just as surely as a `reactionCount` field would. The contract trusts you
+here because it has no other choice.

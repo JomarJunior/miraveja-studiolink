@@ -14,7 +14,7 @@ from miraveja_studiolink.messages.base import ClosedModel
 
 class ErasureNotice(ClosedModel):
     sequence: int = Field(ge=1)
-    pseudonym: str = Field(min_length=16, max_length=128)
+    pseudonym: str = Field(min_length=16, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
     issuedAt: datetime
 
 

@@ -7,6 +7,8 @@ Refusal reason a conforming Museum end must answer with (R-10).
 
 from __future__ import annotations
 
+from pydantic import BaseModel
+
 from miraveja_studiolink.messages.candidates import Candidate, CandidateAccepted, Label
 from miraveja_studiolink.messages.classify import classify_validation_error
 from miraveja_studiolink.messages.comments import (
@@ -65,7 +67,7 @@ __all__ = [
 ]
 
 # Maps each schema name in the hub's contract to the model that represents it.
-SCHEMA_MODELS: dict[str, type] = {
+SCHEMA_MODELS: dict[str, type[BaseModel]] = {
     "PersonaRef": PersonaRef,
     "VisitorRef": VisitorRef,
     "Verdict": Verdict,
