@@ -12,6 +12,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/guard_public_repo.py
+      # Blocks persona definitions, author's notes and vault markers not marked synthetic
+      # (spec 003 FR-021). Pinned, not `main`; bump it deliberately.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "git+https://github.com/JomarJunior/miraveja-persona@196a5326f6456518af5d13772ff1ef26d1233efa"
+      - run: miraveja-persona guard
 
   lint:
     name: Lint, format and type check
